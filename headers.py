@@ -4,8 +4,9 @@ import struct
 DOS_HEADER_LENGTH = 64
 DOS_STUB_LENGTH = None
 FILE_HEADER_LENGTH = 20
-OPTIONAL_HEADER_LENGTH = 96
+OPTIONAL_HEADER_LENGTH = None
 DATA_DIRECTORY_LENGTH = None
+SECTION_DATA_LENGTH = 40
 
 
 # type_size
@@ -32,25 +33,25 @@ def from_little_endian(string, length):
 def fill_fields(cls, content, fields):
     offset = 0
     for item in fields:
-        if item[2] == 1:
+        if len(item) == 2:
             exec(f'cls.{item[0]} = content[offset:offset+{item[1]}]')
+            exec(f'cls.{item[0]} = from_little_endian(cls.{item[0]}, {item[1]})')
+            offset += item[1]
         else:
             exec(f'cls.{item[0]} = list()')
             for elem in range(item[2]):
                 exec(f'cls.{item[0]}.append(content[offset+elem*{item[1]}:offset+(elem+1)*{item[1]}])')
                 exec(f'cls.{item[0]}[-1] = from_little_endian(cls.{item[0]}[elem], {item[1]})')
-        if len(item) != 4 and item[2] == 1:
-            exec(f'cls.{item[0]} = from_little_endian(cls.{item[0]}, {item[1]})')
-        offset += item[1] * item[2]
+            offset += item[1] * item[2]
 
 
 class DOS_header:
     def __init__(self, content):
-        fields = (['e_magic', WORD, 1, True], ['e_cblp', WORD, 1], ['e_cp', WORD, 1], ['e_crlc', WORD, 1],
-                  ['e_cparhdr', WORD, 1], ['e_minalloc', WORD, 1], ['e_maxalloc', WORD, 1], ['e_ss', WORD, 1],
-                  ['e_sp', WORD, 1], ['e_csum', WORD, 1], ['e_ip', WORD, 1], ['e_cs', WORD, 1],
-                  ['e_lfarlc', WORD, 1], ['e_ovno', WORD, 1], ['e_res', WORD, 4], ['e_oemid', WORD, 1],
-                  ['e_oeminfo', WORD, 1], ['e_res2', WORD, 10], ['e_lfanew', DWORD, 1])
+        fields = (['e_magic', BYTE, 2], ['e_cblp', WORD], ['e_cp', WORD], ['e_crlc', WORD],
+                  ['e_cparhdr', WORD], ['e_minalloc', WORD], ['e_maxalloc', WORD], ['e_ss', WORD],
+                  ['e_sp', WORD], ['e_csum', WORD], ['e_ip', WORD], ['e_cs', WORD],
+                  ['e_lfarlc', WORD], ['e_ovno', WORD], ['e_res', WORD, 4], ['e_oemid', WORD],
+                  ['e_oeminfo', WORD], ['e_res2', WORD, 10], ['e_lfanew', DWORD])
         fill_fields(self, content, fields)
         global DOS_STUB_LENGTH
         DOS_STUB_LENGTH = self.e_lfanew - DOS_HEADER_LENGTH
@@ -69,27 +70,50 @@ class PE_sign:
 
 class File_header:
     def __init__(self, content):
-        fields = (['machine', WORD, 1], ['number_of_sections', WORD, 1], ['timedate_stamp', DWORD, 1],
-                  ['pointer_to_symbol_table', DWORD, 1], ['number_of_symbols', DWORD, 1],
-                  ['size_of_optional_header', WORD, 1], ['characteristics', WORD, 1])
+        fields = (['machine', WORD], ['number_of_sections', WORD], ['timedate_stamp', DWORD],
+                  ['pointer_to_symbol_table', DWORD], ['number_of_symbols', DWORD],
+                  ['size_of_optional_header', WORD], ['characteristics', WORD])
         fill_fields(self, content, fields)
-        global DATA_DIRECTORY_LENGTH
-        DATA_DIRECTORY_LENGTH = self.size_of_optional_header - OPTIONAL_HEADER_LENGTH
+        global OPTIONAL_HEADER_LENGTH
+        OPTIONAL_HEADER_LENGTH = self.size_of_optional_header
 
 
 class Optional_header:
     def __init__(self, content):
-        fields = (['magic', WORD, 1], ['major_linker_version', BYTE, 1], ['minor_linker_version', BYTE, 1],
-                  ['size_of_code', DWORD, 1], ['size_of_initialized_data', DWORD, 1],
-                  ['size_of_uninitialized_data', DWORD, 1], ['address_of_entry_point', DWORD, 1],
-                  ['base_of_code', DWORD, 1], ['base_of_data', DWORD, 1], ['image_base', DWORD, 1],
-                  ['section_alignment', DWORD, 1], ['file_alignment', DWORD, 1],
-                  ['major_operations_system_version', WORD, 1], ['minor_operations_system_version', WORD, 1],
-                  ['major_image_version', WORD, 1], ['minor_image_version', WORD, 1],
-                  ['major_subsystem_version', WORD, 1], ['minor_subsystem_version', WORD, 1],
-                  ['win32_version_value', DWORD, 1], ['size_of_image', DWORD, 1], ['size_of_headers', DWORD, 1],
-                  ['check_sum', DWORD, 1], ['subsystem', WORD, 1], ['dll_characteristics', WORD, 1],
-                  ['size_of_stack_reserve', DWORD, 1], ['size_of_stack_commit', DWORD, 1],
-                  ['size_of_heap_reserve', DWORD, 1], ['size_of_heap_commit', DWORD, 1], ['loader_flags', DWORD, 1],
-                  ['number_of_rva_and_sizes', DWORD, 1])
+        fields = (['magic', WORD], ['major_linker_version', BYTE], ['minor_linker_version', BYTE],
+                  ['size_of_code', DWORD], ['size_of_initialized_data', DWORD],
+                  ['size_of_uninitialized_data', DWORD], ['address_of_entry_point', DWORD],
+                  ['base_of_code', DWORD], ['base_of_data', DWORD], ['image_base', DWORD],
+                  ['section_alignment', DWORD], ['file_alignment', DWORD], ['major_operations_system_version', WORD],
+                  ['minor_operations_system_version', WORD], ['major_image_version', WORD],
+                  ['minor_image_version', WORD], ['major_subsystem_version', WORD], ['minor_subsystem_version', WORD],
+                  ['win32_version_value', DWORD], ['size_of_image', DWORD], ['size_of_headers', DWORD],
+                  ['check_sum', DWORD], ['subsystem', WORD], ['dll_characteristics', WORD],
+                  ['size_of_stack_reserve', DWORD], ['size_of_stack_commit', DWORD], ['size_of_heap_reserve', DWORD],
+                  ['size_of_heap_commit', DWORD], ['loader_flags', DWORD], ['number_of_rva_and_sizes', DWORD])
+        fill_fields(self, content, fields)
+        self.data_directory = list()
+        global DATA_DIRECTORY_LENGTH
+        DATA_DIRECTORY_LENGTH = OPTIONAL_HEADER_LENGTH - 96
+        data_directory_count = DATA_DIRECTORY_LENGTH // self.number_of_rva_and_sizes
+        data_directory_content = content[96:]
+        for c in range(data_directory_count):
+            address = data_directory_content[c * DWORD * 2:c * DWORD * 2 + DWORD]
+            size = data_directory_content[c * DWORD * 2 + DWORD:c * DWORD * 2 + DWORD + DWORD]
+            self.data_directory.append(Image_data_directory(from_little_endian(address, DWORD),
+                                                            from_little_endian(size, DWORD)))
+
+
+class Image_data_directory:
+    def __init__(self, address, size):
+        self.address = address
+        self.size = size
+
+
+class Section_data:
+    def __init__(self, content):
+        fields = (['name', BYTE, 8], ['physical_address', DWORD], ['virtual_address', DWORD],
+                  ['size_of_raw_data', DWORD], ['pointer_to_raw_data', DWORD], ['pointer_to_relocations', DWORD],
+                  ['pointer_to_linenumbers', DWORD], ['number_of_relocations', WORD], ['number_of_linenumbers', WORD],
+                  ['characteristics', DWORD])
         fill_fields(self, content, fields)
