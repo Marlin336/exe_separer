@@ -65,7 +65,7 @@ class DOS_stub:
 
 class PE_sign:
     def __init__(self, content):
-        self.signature = content[0:DWORD]
+        self.signature = content[:DWORD]
 
 
 class File_header:
@@ -95,9 +95,8 @@ class Optional_header:
         self.data_directory = list()
         global DATA_DIRECTORY_LENGTH
         DATA_DIRECTORY_LENGTH = OPTIONAL_HEADER_LENGTH - 96
-        data_directory_count = DATA_DIRECTORY_LENGTH // self.number_of_rva_and_sizes
         data_directory_content = content[96:]
-        for c in range(data_directory_count):
+        for c in range(self.number_of_rva_and_sizes):
             address = data_directory_content[c * DWORD * 2:c * DWORD * 2 + DWORD]
             size = data_directory_content[c * DWORD * 2 + DWORD:c * DWORD * 2 + DWORD + DWORD]
             self.data_directory.append(Image_data_directory(from_little_endian(address, DWORD),
