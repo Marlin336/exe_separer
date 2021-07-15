@@ -11,7 +11,7 @@ class Separer:
         self.DOS_header = DOS_header(exe.read(DOS_HEADER_LENGTH))
         offset += DOS_HEADER_LENGTH
         if bytes(self.DOS_header.e_magic) != b'MZ':
-            raise Exception('The file isn\'t a executable.')
+            raise Exception('The file isn\'t an executable.')
         self.DOS_stub = DOS_stub(exe.read(headers.DOS_STUB_LENGTH))
         offset += headers.DOS_STUB_LENGTH
         self.PE_sign = PE_sign(exe.read(DWORD))
