@@ -46,6 +46,27 @@ def fill_fields(cls, content, fields):
 
 
 class DOS_header:
+    """
+    WORD    e_magic;         // Magic number
+    WORD    e_cblp;          // Bytes on last page of file
+    WORD    e_cp;            // Pages in file
+    WORD    e_crlc;          // Relocations
+    WORD    e_cparhdr;       // Size of header in paragraphs
+    WORD    e_minalloc;      // Minimum extra paragraphs needed
+    WORD    e_maxalloc;      // Maximum extra paragraphs needed
+    WORD    e_ss;            // Initial (relative) SS value
+    WORD    e_sp;            // Initial SP value
+    WORD    e_csum;          // Checksum
+    WORD    e_ip;            // Initial IP value
+    WORD    e_cs;            // Initial (relative) CS value
+    WORD    e_lfarlc;        // File address of relocation table
+    WORD    e_ovno;          // Overlay number
+    WORD    e_res[4];        // Reserved words
+    WORD    e_oemid;         // OEM identifier (for e_oeminfo)
+    WORD    e_oeminfo;       // OEM information; e_oemid specific
+    WORD    e_res2[10];      // Reserved words
+    DWORD   e_lfanew;        // File address of new exe header
+    """
     def __init__(self, content):
         fields = (['e_magic', BYTE, 2], ['e_cblp', WORD], ['e_cp', WORD], ['e_crlc', WORD],
                   ['e_cparhdr', WORD], ['e_minalloc', WORD], ['e_maxalloc', WORD], ['e_ss', WORD],
@@ -57,15 +78,17 @@ class DOS_header:
         DOS_STUB_LENGTH = self.e_lfanew - DOS_HEADER_LENGTH
 
 
-# Unknown purposes of fields
 class DOS_stub:
+    """
+    DOS-stub executes when the application is running on DOS-system
+    """
     def __init__(self, content):
         self.content = content
 
 
 class PE_sign:
     def __init__(self, content):
-        self.signature = content[:DWORD]
+        self.value = content[:DWORD]
 
 
 class File_header:
@@ -96,17 +119,15 @@ class Optional_header:
         global DATA_DIRECTORY_LENGTH
         DATA_DIRECTORY_LENGTH = OPTIONAL_HEADER_LENGTH - 96
         data_directory_content = content[96:]
+        dir_names = ['EXPORT', 'IMPORT', 'RESOURCE', 'EXCEPTION', 'SECURITY', 'BASERELOC', 'DEBUG',
+                     'ARCHITECTURE', 'GLOBALPTR', 'TLS', 'LOAD_CONFIG', 'BOUND_IMPORT' 'IAT',
+                     'DELAY_IMPORT', 'COM_DESCRIPTOR'] + ['UNKNOWN'] * 2
         for c in range(self.number_of_rva_and_sizes):
             address = data_directory_content[c * DWORD * 2:c * DWORD * 2 + DWORD]
             size = data_directory_content[c * DWORD * 2 + DWORD:c * DWORD * 2 + DWORD + DWORD]
-            self.data_directory.append(Image_data_directory(from_little_endian(address, DWORD),
-                                                            from_little_endian(size, DWORD)))
-
-
-class Image_data_directory:
-    def __init__(self, address, size):
-        self.address = address
-        self.size = size
+            self.data_directory.append({'name': dir_names[c],
+                                        'address': from_little_endian(address, DWORD),
+                                        'size': from_little_endian(size, DWORD)})
 
 
 class Section_data:

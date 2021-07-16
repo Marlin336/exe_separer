@@ -3,7 +3,7 @@ import headers
 from headers import *
 
 
-def get_name_from_rsrc_index(index):
+def get_name_from_rsrc_id(index):
     if index == 1:
         return 'CURSOR'
     elif index == 2:
@@ -26,9 +26,9 @@ def get_name_from_rsrc_index(index):
         return 'RCDATA'
     elif index == 11:
         return 'MESSAGETABLE'
-    elif index == 12:
-        return 'GROUP_CURSOR'
     elif index == 13:
+        return 'GROUP_CURSOR'
+    elif index == 14:
         return 'GROUP_ICON'
     elif index == 16:
         return 'VERSION'
@@ -59,7 +59,7 @@ class Separer:
         offset += headers.DOS_STUB_LENGTH
         self.PE_sign = PE_sign(exe.read(DWORD))
         offset += DWORD
-        if bytes(self.PE_sign.signature) != b'PE\x00\x00':
+        if bytes(self.PE_sign.value) != b'PE\x00\x00':
             raise Exception('The file isn\'t a portable executable.')
         self.File_header = File_header(exe.read(FILE_HEADER_LENGTH))
         offset += FILE_HEADER_LENGTH
@@ -90,14 +90,39 @@ class Separer:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
         rsrc = self.Section_content[sect_num]
         offset = 0
-        number_of_id_entries_ptr = int('0e', 16)
-        number_of_id_entries = from_little_endian(rsrc[number_of_id_entries_ptr:number_of_id_entries_ptr + WORD], WORD)
-        offset += number_of_id_entries_ptr + WORD
+        rsrc_header = rsrc[:16]
+        characteristics = from_little_endian(rsrc_header[offset:offset + DWORD], DWORD)
+        offset += DWORD
+        timedate_stamp = from_little_endian(rsrc_header[offset:offset + DWORD], DWORD)
+        offset += DWORD
+        major_version = from_little_endian(rsrc_header[offset:offset + WORD], WORD)
+        offset += WORD
+        minor_version = from_little_endian(rsrc_header[offset:offset + WORD], WORD)
+        offset += WORD
+        number_of_named_entries = from_little_endian(rsrc_header[offset:offset + WORD], WORD)
+        offset += WORD
+        number_of_id_entries = from_little_endian(rsrc_header[offset:offset+WORD], WORD)
+        offset += WORD
         dir_list = list()
-        for dir_num in range(number_of_id_entries):
-            name = get_name_from_rsrc_index(from_little_endian(rsrc[offset:offset + DWORD], DWORD))
+        for dir_num in range(number_of_named_entries + number_of_id_entries):
+            name_or_id = from_little_endian(rsrc[offset:offset + DWORD], DWORD)
+            if name_or_id & int('80000000', 16) == 0:
+                name = get_name_from_rsrc_id(from_little_endian(rsrc[offset:offset + DWORD], DWORD))
+            else:
+                rsrc_offset = name_or_id & int('7FFFFFFF', 16)
+                name_size = from_little_endian(rsrc[rsrc_offset:rsrc_offset + WORD], WORD)
+                rsrc_offset += WORD
+                name = list()
+                for char in range(name_size):
+                    name.append(from_little_endian(rsrc[rsrc_offset:rsrc_offset + WORD], WORD))
+                    rsrc_offset += WORD
+                name = bytes(name).decode('UTF-8')
             offset += DWORD
-            data_offset = from_little_endian(rsrc[offset:offset + DWORD], DWORD)
+            # resource offset calculation
             offset += DWORD
-            dir_list.append({'name': name, 'offset': data_offset})
-        pass
+            dir_list.append({'name': name, 'offset': 0})
+        if 'ICON' not in [item['name'] for item in dir_list]:
+            raise Exception('This program has no icon')
+        if 'GROUP_ICON' not in [item['name'] for item in dir_list]:
+            raise Exception('This program has no icon groups')
+
