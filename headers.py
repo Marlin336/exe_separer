@@ -1,4 +1,4 @@
-import struct
+from func import from_little_endian, BYTE, WORD, DWORD
 
 # Headers' length
 DOS_HEADER_LENGTH = 64
@@ -7,27 +7,6 @@ FILE_HEADER_LENGTH = 20
 OPTIONAL_HEADER_LENGTH = None
 DATA_DIRECTORY_LENGTH = None
 SECTION_DATA_LENGTH = 40
-
-
-# type_size
-BYTE = 1
-WORD = 2
-DWORD = 4
-QWORD = 8
-
-
-def from_little_endian(string, length):
-    if length == 1:
-        str_len = 'B'
-    elif length == 2:
-        str_len = 'H'
-    elif length == 4:
-        str_len = 'I'
-    elif length == 8:
-        str_len = 'Q'
-    else:
-        raise Exception('invalid byte-string length')
-    return struct.unpack('<' + str_len, string)[0]
 
 
 def fill_fields(cls, content, fields):
