@@ -10,6 +10,13 @@ SECTION_DATA_LENGTH = 40
 
 
 def fill_fields(cls, content, fields):
+    """
+    Fill fields of the _cls_ header, using _content_ data and creating _fields_ fields
+    :param cls: the instance of the class that represents the header
+    :param content: byte-string from an executable file that contains necessary data
+    :param fields: list of names of fields that will be added in _cls_
+    :return: None
+    """
     offset = 0
     for item in fields:
         if len(item) == 2:
