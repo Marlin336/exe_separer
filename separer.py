@@ -37,6 +37,7 @@ class Separer:
         if b'.rsrc\x00\x00\x00' in [bytes(item.name) for item in self.Section_table]:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
             self.rsrc_section = rsrc_section(self.Section_content[sect_num],
+                                             self.Section_table[sect_num].pointer_to_raw_data,
                                              self.Section_table[sect_num].virtual_address)
             pass
 

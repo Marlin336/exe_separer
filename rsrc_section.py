@@ -1,7 +1,11 @@
 from func import from_little_endian, get_name_from_rsrc_id, BYTE, WORD, DWORD
 
 
-def get_name(name_field, content, is_type):
+def is_leaf(curr_node):
+    return not(curr_node[1] & int('80000000', 16))
+
+
+def get_name(name_field, content, is_type=False):
     if name_field & int('80000000', 16):
         name_offset = name_field & int('7FFFFFFF', 16)
         name_size = from_little_endian(content[name_offset:name_offset + WORD], WORD)
@@ -18,54 +22,53 @@ def get_name(name_field, content, is_type):
             return name_field
 
 
+def get_dir(content, offset, curr_node: list, is_type=False):
+    header = dict()
+    header['char'] = from_little_endian(content[offset:offset + DWORD], DWORD)
+    offset += DWORD
+    header['td_stamp'] = from_little_endian(content[offset:offset + DWORD], DWORD)
+    offset += DWORD
+    header['maj_ver'] = from_little_endian(content[offset:offset + WORD], WORD)
+    offset += WORD
+    header['min_ver'] = from_little_endian(content[offset:offset + WORD], WORD)
+    offset += WORD
+    header['num_of_named_ent'] = from_little_endian(content[offset:offset + WORD], WORD)
+    offset += WORD
+    header['num_of_id_ent'] = from_little_endian(content[offset:offset + WORD], WORD)
+    offset += WORD
+    for child_num in range(header['num_of_id_ent'] + header['num_of_named_ent']):
+        dir_name = get_name(from_little_endian(content[offset:offset + DWORD], DWORD), content, is_type)
+        offset += DWORD
+        dir_offset = from_little_endian(content[offset:offset + DWORD], DWORD)
+        offset += DWORD
+        curr_node.append([dir_name, dir_offset])
+
+
+def get_data(content, offset, curr_node: list, section_pointer, virtual_address):
+    header = dict()
+    header['offset'] = section_pointer + (from_little_endian(content[offset:offset + DWORD], DWORD) - virtual_address)
+    offset += DWORD
+    header['size'] = from_little_endian(content[offset:offset + DWORD], DWORD)
+    offset += DWORD
+    header['code_page'] = from_little_endian(content[offset:offset + DWORD], DWORD)
+    offset += DWORD
+    # reserved
+    offset += DWORD
+    curr_node.append(content[header['offset']:header['offset'] + header['size']])
+
+
 class rsrc_section:
-    def __init__(self, content, virtual_address):
-        offset = 0
-        dir_desc = list()
-        dir_desc.append([rsrc_section.get_descriptor_data(content[offset:offset + 16])])
-        offset += 16
-        dir_count = dir_desc[0][0]['num_of_named_entries'] + dir_desc[0][0]['num_of_id_entries']
-        offset += dir_count * (DWORD + DWORD)
-        sec_level = list()
-        for d in dir_count:
-            pass
-
-    @staticmethod
-    def get_descriptor_data(content):
-        offset = 0
-        char = from_little_endian(content[offset:offset + DWORD], DWORD)
-        offset += DWORD
-        timedate_stamp = from_little_endian(content[offset:offset+DWORD], DWORD)
-        offset += DWORD
-        major_version = from_little_endian(content[offset:offset + WORD], WORD)
-        offset += WORD
-        minor_version = from_little_endian(content[offset:offset + WORD], WORD)
-        offset += WORD
-        num_of_named_entries = from_little_endian(content[offset:offset + WORD], WORD)
-        offset += WORD
-        num_of_id_entries = from_little_endian(content[offset:offset + WORD], WORD)
-        return {'characteristics': char, 'timedate_stamp': timedate_stamp, 'major_version': major_version,
-                'minor_version': minor_version, 'num_of_named_entries': num_of_named_entries,
-                'num_of_id_entries': num_of_id_entries}
-
-
-class node:
-    def __init__(self, name, offset):
-        self.name = name
-        self.offset = offset
-        self.characteristics = None
-        self.timedate_stamp = None
-        self.major_version = None
-        self.minor_version = None
-        self.number_of_named_entries = None
-        self.number_of_id_entries = None
-        self.children = list()
-
-    def add_child(self, child):
-        self.children.append(child)
-
-    def del_child(self, child):
-        self.children.remove(child)
-
-    def is_leaf(self):
-        return not(self.offset & int('80000000', 16))
+    def __init__(self, content, section_pointer, virtual_address):
+        dir_tree = list()
+        get_dir(content, 0, dir_tree, True)
+        for d_type in dir_tree:
+            d_type[1] = d_type[1] & int('7FFFFFFF', 16)
+            get_dir(content, d_type[1], d_type)
+        for d_name in dir_tree:
+            curr_node = d_name[2]
+            curr_node[1] = curr_node[1] & int('7FFFFFFF', 16)
+            get_dir(content, curr_node[1], curr_node)
+        for d_lang in dir_tree:
+            curr_node = d_lang[2][2]
+            get_data(content, curr_node[1] + 16, curr_node, section_pointer, virtual_address)
+        pass
