@@ -41,7 +41,7 @@ def get_dir(content, offset, curr_node: list, is_type=False):
         offset += DWORD
         dir_offset = from_little_endian(content[offset:offset + DWORD], DWORD)
         offset += DWORD
-        curr_node.append([dir_name, dir_offset])
+        curr_node.append([dir_name, dir_offset, []])
 
 
 def get_data(content, offset, curr_node: list, virtual_address):
@@ -54,20 +54,21 @@ def get_data(content, offset, curr_node: list, virtual_address):
     offset += DWORD
     # reserved
     offset += DWORD
-    curr_node.append(content[header['offset']:header['offset'] + header['size']])
+    curr_node[2] = content[header['offset']:header['offset'] + header['size']]
 
 
 class rsrc_section:
     def __init__(self, content, virtual_address):
-        dir_tree = list()
-        get_dir(content, 0, dir_tree, True)
-        for d_type in dir_tree:
+        self.dir_tree = list()
+        get_dir(content, 0, self.dir_tree, True)
+        for d_type in self.dir_tree:
             d_type[1] = d_type[1] & int('7FFFFFFF', 16)
-            get_dir(content, d_type[1], d_type)
-        for d_name in dir_tree:
-            curr_node = d_name[2]
-            curr_node[1] = curr_node[1] & int('7FFFFFFF', 16)
-            get_dir(content, curr_node[1], curr_node)
-        for d_lang in dir_tree:
-            curr_node = d_lang[2][2]
-            get_data(content, curr_node[1], curr_node, virtual_address)
+            get_dir(content, d_type[1], d_type[2])
+        for d_type in self.dir_tree:
+            for d_name in d_type[2]:
+                d_name[1] = d_name[1] & int('7FFFFFFF', 16)
+                get_dir(content, d_name[1], d_name[2])
+        for d_type in self.dir_tree:
+            for d_name in d_type[2]:
+                for d_lang in d_name[2]:
+                    get_data(content, d_lang[1], d_lang, virtual_address)
