@@ -5,9 +5,9 @@ from rsrc_section import *
 
 
 class Separer:
-    def __init__(self, path: str):
-        self.path = path
-        exe = open(path, 'rb')
+    def __init__(self, file_name: str):
+        self.path = file_name
+        exe = open(file_name, 'rb')
         offset = 0
         self.DOS_header = DOS_header(exe.read(DOS_HEADER_LENGTH))
         offset += DOS_HEADER_LENGTH
@@ -36,9 +36,9 @@ class Separer:
         # analyzing rsrc section
         if b'.rsrc\x00\x00\x00' in [bytes(item.name) for item in self.Section_table]:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
-            self.rsrc_section = rsrc_section(self.Section_content[sect_num],
+            self.rsrc_section = rsrc_section(self.path, self.Section_content[sect_num],
                                              self.Section_table[sect_num].virtual_address)
-            pass
+            self.rsrc_section.extract_directories()
 
     def extract_sections(self):
         os.mkdir(f'{self.path}.sections')

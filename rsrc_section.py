@@ -1,5 +1,5 @@
 from func import from_little_endian, get_name_from_rsrc_id, BYTE, WORD, DWORD
-
+import os
 
 def is_leaf(curr_node):
     return not(curr_node[1] & int('80000000', 16))
@@ -58,7 +58,8 @@ def get_data(content, offset, curr_node: list, virtual_address):
 
 
 class rsrc_section:
-    def __init__(self, content, virtual_address):
+    def __init__(self, file_name, content, virtual_address):
+        self.file_name = file_name
         self.dir_tree = list()
         get_dir(content, 0, self.dir_tree, True)
         for d_type in self.dir_tree:
@@ -72,3 +73,27 @@ class rsrc_section:
             for d_name in d_type[2]:
                 for d_lang in d_name[2]:
                     get_data(content, d_lang[1], d_lang, virtual_address)
+        pass
+
+    def extract_directories(self):
+        if not os.path.exists(f'{self.file_name}.rsrc'):
+            os.mkdir(f'{self.file_name}.rsrc')
+            os.chdir(f'{self.file_name}.rsrc')
+            for d_type in self.dir_tree:
+                os.mkdir(str(d_type[0]))
+            for d_type in self.dir_tree:
+                os.chdir(str(d_type[0]))
+                for d_name in d_type[2]:
+                    os.mkdir(str(d_name[0]))
+                os.chdir('..')
+            for d_type in self.dir_tree:
+                os.chdir(d_type[0])
+                for d_name in d_type[2]:
+                    os.chdir(str(d_name[0]))
+                    for d_lang in d_name[2]:
+                        f_in = open(str(d_lang[0]), 'wb')
+                        f_in.write(d_lang[2])
+                        f_in.close()
+                    os.chdir('..')
+                os.chdir('..')
+            pass
