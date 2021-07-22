@@ -21,13 +21,13 @@ def fill_fields(cls, content, fields):
     for item in fields:
         if len(item) == 2:
             exec(f'cls.{item[0]} = content[offset:offset+{item[1]}]')
-            exec(f'cls.{item[0]} = from_little_endian(cls.{item[0]}, {item[1]})')
+            exec(f'cls.{item[0]} = from_little_endian(cls.{item[0]})')
             offset += item[1]
         else:
             exec(f'cls.{item[0]} = list()')
             for elem in range(item[2]):
                 exec(f'cls.{item[0]}.append(content[offset+elem*{item[1]}:offset+(elem+1)*{item[1]}])')
-                exec(f'cls.{item[0]}[-1] = from_little_endian(cls.{item[0]}[elem], {item[1]})')
+                exec(f'cls.{item[0]}[-1] = from_little_endian(cls.{item[0]}[elem])')
             offset += item[1] * item[2]
 
 
@@ -112,8 +112,8 @@ class Optional_header:
             address = data_directory_content[c * DWORD * 2:c * DWORD * 2 + DWORD]
             size = data_directory_content[c * DWORD * 2 + DWORD:c * DWORD * 2 + DWORD + DWORD]
             self.data_directory.append({'name': dir_names[c],
-                                        'address': from_little_endian(address, DWORD),
-                                        'size': from_little_endian(size, DWORD)})
+                                        'address': from_little_endian(address),
+                                        'size': from_little_endian(size)})
 
 
 class Section_data:

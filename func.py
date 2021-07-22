@@ -1,4 +1,5 @@
 import struct
+import os
 
 # type_size
 BYTE = 1
@@ -7,7 +8,8 @@ DWORD = 4
 QWORD = 8
 
 
-def from_little_endian(string, length):
+def from_little_endian(string):
+    length = len(string)
     if length == 1:
         str_len = 'B'
     elif length == 2:
@@ -20,6 +22,19 @@ def from_little_endian(string, length):
         raise Exception('invalid byte-string length')
     return struct.unpack('<' + str_len, string)[0]
 
+
+def to_little_endian(data, length):
+    if length == 1:
+        str_len = 'B'
+    elif length == 2:
+        str_len = 'H'
+    elif length == 4:
+        str_len = 'I'
+    elif length == 8:
+        str_len = 'Q'
+    else:
+        raise Exception('invalid byte-string length')
+    return struct.pack('<' + str_len, data)
 
 def get_name_from_rsrc_id(_id):
     if _id == 1:
