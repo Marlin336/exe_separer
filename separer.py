@@ -36,7 +36,6 @@ class Separer:
         if b'.rsrc\x00\x00\x00' in [bytes(item.name) for item in self.Section_table]:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
             self.rsrc_section = rsrc_section(self, sect_num)
-            self.rsrc_section.get_icon()
 
     def extract_sections(self):
         os.mkdir(f'{self.file_name}.sections')
@@ -44,3 +43,9 @@ class Separer:
         for sect_num in range(len(self.Section_table)):
             name = bytes([x for x in self.Section_table[sect_num].name if x != 0]).decode('utf-8')
             open(name, 'wb').write(self.Section_content[sect_num])
+
+    def extract_resources(self):
+        self.rsrc_section.extract_directories()
+
+    def extract_icons(self):
+        self.rsrc_section.get_icon()
