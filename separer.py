@@ -36,7 +36,6 @@ class Separer:
         if b'.rsrc\x00\x00\x00' in [bytes(item.name) for item in self.Section_table]:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
             self.rsrc_section = rsrc_section(self, sect_num)
-            self.rsrc_section.extract_directories()
             self.rsrc_section.get_icon()
 
     def extract_sections(self):

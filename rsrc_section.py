@@ -100,46 +100,61 @@ class rsrc_section:
 
     def get_icon(self):
         if not os.path.exists(f'{self.parent.file_name}.icons'):
-            ico_hdrs = [item for item in self.dir_tree if item[0] == 'GROUP_ICON'][0][2]
+            ico_hdr = [item for item in self.dir_tree if item[0] == 'GROUP_ICON'][0][2]
             icons = [item for item in self.dir_tree if item[0] == 'ICON'][0][2]
             os.mkdir(f'{self.parent.file_name}.icons')
             os.chdir(f'{self.parent.file_name}.icons')
-            headers_list = list()
-            icons_list = list()
-            for data in ico_hdrs:
-                headers_list.append(data[2][0][2])
-            for data in icons:
-                icons_list.append(data[2][0][2])
-            for icon_hdr in headers_list:
+            icon_name = [item[0] for item in ico_hdr]
+            ico_hdr = [item[2][0][2] for item in ico_hdr]
+            icons = [item[2][0][2] for item in icons]
+            for icon_hdr_num in range(len(ico_hdr)):
                 offset = 0
                 # reserved
                 offset += WORD
-                data_type = from_little_endian(icon_hdr[offset:offset + WORD])
+                data_type = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                img_count = from_little_endian(icon_hdr[offset:offset + WORD])
+                img_count = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                icon_elem_data = list()
+                res = bytes()
+                res += to_little_endian(0, WORD)
+                res += to_little_endian(data_type, WORD)
+                res += to_little_endian(img_count, WORD)
+                last_ico_size = 0
+                img_index = list()
                 for elem in range(img_count):
-                    ico_elem = dict()
                     # 0 == 256
-                    ico_elem['width'] = from_little_endian(icon_hdr[offset:offset + BYTE])
+                    # width
+                    res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
                     offset += BYTE
                     # 0 == 256
-                    ico_elem['height'] = from_little_endian(icon_hdr[offset:offset + BYTE])
+                    # height
+                    res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
                     offset += BYTE
-                    ico_elem['color_count'] = from_little_endian(icon_hdr[offset:offset + BYTE])
+                    # color count
+                    res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
                     offset += BYTE
                     # reserved
+                    res += to_little_endian(0, BYTE)
                     offset += BYTE
-                    ico_elem['planes'] = from_little_endian(icon_hdr[offset:offset + WORD])
-                    offset + WORD
+                    # planes
+                    res += ico_hdr[icon_hdr_num][offset:offset + WORD]
+                    offset += WORD
                     # bits per pixel
-                    ico_elem['bpp'] = from_little_endian(icon_hdr[offset:offset + WORD])
+                    res += ico_hdr[icon_hdr_num][offset:offset + WORD]
                     offset += WORD
                     # size in bytes
-                    ico_elem['size'] = from_little_endian(icon_hdr[offset:offset + DWORD])
+                    size_mem = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + DWORD])
+                    res += ico_hdr[icon_hdr_num][offset:offset + DWORD]
                     offset += DWORD
-                    # must be changed to data offset (length = DWORD)
-                    ico_elem['number'] = from_little_endian(icon_hdr[offset:offset + WORD])
+                    # image index in ICON directory
+                    img_index.append(from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
                     offset += WORD
-                    pass
+                    # data_offset
+                    file_offset = WORD * 3
+                    file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_ico_size
+                    res += to_little_endian(file_offset, DWORD)
+                    last_ico_size += size_mem
+                for ico in range(img_count):
+                    res += icons[img_index[ico]]
+                with open(f'{icon_name[icon_hdr_num]}.ico', 'wb') as out_file:
+                    out_file.write(res)
