@@ -85,17 +85,9 @@ class rsrc_section:
             for d_type in self.dir_tree:
                 os.chdir(str(d_type[0]))
                 for d_name in d_type[2]:
-                    os.mkdir(str(d_name[0]))
-                os.chdir('..')
-            for d_type in self.dir_tree:
-                os.chdir(d_type[0])
-                for d_name in d_type[2]:
-                    os.chdir(str(d_name[0]))
-                    for d_lang in d_name[2]:
-                        f_in = open(str(d_lang[0]), 'wb')
-                        f_in.write(d_lang[2])
-                        f_in.close()
-                    os.chdir('..')
+                    f_in = open(f'{d_name[0]}_{d_name[2][0][0]}', 'wb')
+                    f_in.write(d_name[2][0][2])
+                    f_in.close()
                 os.chdir('..')
 
     def get_icon(self):
