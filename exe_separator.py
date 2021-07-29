@@ -417,6 +417,9 @@ class rsrc_section:
                     out_file.write(res)
 
     def get_cursor(self):
+        if 'GROUP_CURSOR' not in [item[0] for item in self.dir_tree] or \
+                'CURSOR' not in [item[0] for item in self.dir_tree]:
+            raise AttributeError('There are no icons in the executable file')
         if not os.path.exists(f'{self.parent.file_name}.cursors'):
             cur_hdr = [item for item in self.dir_tree if item[0] == 'GROUP_CURSOR'][0][2]
             cursors = [item for item in self.dir_tree if item[0] == 'CURSOR'][0][2]
@@ -440,39 +443,39 @@ class rsrc_section:
                 last_cur_size = 0
                 img_index = list()
                 for elem in range(img_count):
-                    # 0 == 256
                     # width
-                    res += cur_hdr[icon_hdr_num][offset:offset + BYTE]
-                    offset += BYTE
-                    # 0 == 256
+                    w = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+                    offset += WORD
                     # height
-                    res += cur_hdr[icon_hdr_num][offset:offset + BYTE]
-                    offset += BYTE
-                    # color count
-                    res += cur_hdr[icon_hdr_num][offset:offset + BYTE]
-                    offset += BYTE
-                    # reserved
-                    res += to_little_endian(0, BYTE)
-                    offset += BYTE
-                    # planes
-                    res += cur_hdr[icon_hdr_num][offset:offset + WORD]
+                    h = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
                     offset += WORD
-                    # bits per pixel
-                    res += cur_hdr[icon_hdr_num][offset:offset + WORD]
-                    offset += WORD
-                    # size in bytes
-                    size_mem = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD])
-                    res += cur_hdr[icon_hdr_num][offset:offset + DWORD]
+                    unknown = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD])
                     offset += DWORD
-                    # image index in ICON directory
+                    if unknown != int('40', 16):
+                        h = h // 2
+                    # size in bytes
+                    size_mem = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD]) - 4
+                    offset += DWORD
+                    # image index in CURSOR directory
                     img_index.append(from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
                     offset += WORD
                     # data_offset
                     file_offset = WORD * 3
                     file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_cur_size
+                    h_coordinate = from_little_endian(cursors[img_index[-1]][:2])
+                    v_coordinate = from_little_endian(cursors[img_index[-1]][2:4])
+
+                    # cursor assembling
+                    res += to_little_endian(w, BYTE)
+                    res += to_little_endian(h, BYTE)
+                    res += to_little_endian(0, BYTE)
+                    res += to_little_endian(0, BYTE)
+                    res += to_little_endian(h_coordinate, WORD)
+                    res += to_little_endian(v_coordinate, WORD)
+                    res += to_little_endian(size_mem, DWORD)
                     res += to_little_endian(file_offset, DWORD)
                     last_cur_size += size_mem
                 for ico in range(img_count):
-                    res += cursors[img_index[ico]]
+                    res += cursors[img_index[ico]][4:]
                 with open(f'{cursor_name[icon_hdr_num]}.cur', 'wb') as out_file:
                     out_file.write(res)
