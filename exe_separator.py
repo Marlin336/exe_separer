@@ -295,20 +295,20 @@ class EXE_separator:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
             self.rsrc_section = rsrc_section(self, sect_num)
 
-    def extract_sections(self):
+    def get_sections(self):
         os.mkdir(f'{self.file_name}.sections')
         os.chdir(f'{self.file_name}.sections')
         for sect_num in range(len(self.Section_table)):
             name = bytes([x for x in self.Section_table[sect_num].name if x != 0]).decode('utf-8')
             open(name, 'wb').write(self.Section_content[sect_num])
 
-    def extract_resources(self):
-        self.rsrc_section.extract_directories()
+    def get_resources(self):
+        self.rsrc_section.get_directories()
 
-    def extract_icons(self):
+    def get_icons(self):
         self.rsrc_section.get_icon()
 
-    def extract_cursors(self):
+    def get_cursors(self):
         self.rsrc_section.get_cursor()
 
 
@@ -331,151 +331,163 @@ class rsrc_section:
                     get_data(content, d_lang[1], d_lang, parent.Section_table[sect_num].virtual_address)
         pass
 
-    def extract_directories(self):
-        if not os.path.exists(f'{self.parent.file_name}.rsrc'):
-            os.mkdir(f'{self.parent.file_name}.rsrc')
-            os.chdir(f'{self.parent.file_name}.rsrc')
-            for d_type in self.dir_tree:
-                os.mkdir(str(d_type[0]))
-            for d_type in self.dir_tree:
-                os.chdir(str(d_type[0]))
-                for d_name in d_type[2]:
-                    os.mkdir(str(d_name[0]))
+    def get_directories(self):
+        sdir_name = dir_name = f'{self.parent.file_name}.rsrc'
+        num = 0
+        while os.path.exists(dir_name):
+            dir_name = f'{sdir_name}_{num}'
+            num += 1
+        os.mkdir(dir_name)
+        os.chdir(dir_name)
+        for d_type in self.dir_tree:
+            os.mkdir(str(d_type[0]))
+        for d_type in self.dir_tree:
+            os.chdir(str(d_type[0]))
+            for d_name in d_type[2]:
+                os.mkdir(str(d_name[0]))
+            os.chdir('..')
+        for d_type in self.dir_tree:
+            os.chdir(d_type[0])
+            for d_name in d_type[2]:
+                os.chdir(str(d_name[0]))
+                for d_lang in d_name[2]:
+                    f_in = open(str(d_lang[0]), 'wb')
+                    f_in.write(d_lang[2])
+                    f_in.close()
                 os.chdir('..')
-            for d_type in self.dir_tree:
-                os.chdir(d_type[0])
-                for d_name in d_type[2]:
-                    os.chdir(str(d_name[0]))
-                    for d_lang in d_name[2]:
-                        f_in = open(str(d_lang[0]), 'wb')
-                        f_in.write(d_lang[2])
-                        f_in.close()
-                    os.chdir('..')
-                os.chdir('..')
+            os.chdir('..')
 
     def get_icon(self):
         if 'GROUP_ICON' not in [item[0] for item in self.dir_tree] or 'ICON' not in [item[0] for item in self.dir_tree]:
             raise AttributeError('There are no icons in the executable file')
-        if not os.path.exists(f'{self.parent.file_name}.icons'):
-            ico_hdr = [item for item in self.dir_tree if item[0] == 'GROUP_ICON'][0][2]
-            icons = [item for item in self.dir_tree if item[0] == 'ICON'][0][2]
-            os.mkdir(f'{self.parent.file_name}.icons')
-            os.chdir(f'{self.parent.file_name}.icons')
-            icon_name = [item[0] for item in ico_hdr]
-            ico_hdr = [item[2][0][2] for item in ico_hdr]
-            icons = [item[2][0][2] for item in icons]
-            for icon_hdr_num in range(len(ico_hdr)):
-                offset = 0
+        sdir_name = dir_name = f'{self.parent.file_name}.icons'
+        num = 0
+        while os.path.exists(dir_name):
+            dir_name = f'{sdir_name}_{num}'
+            num += 1
+        ico_hdr = [item for item in self.dir_tree if item[0] == 'GROUP_ICON'][0][2]
+        icons = [item for item in self.dir_tree if item[0] == 'ICON'][0][2]
+        os.mkdir(dir_name)
+        os.chdir(dir_name)
+        icon_name = [item[0] for item in ico_hdr]
+        ico_hdr = [item[2][0][2] for item in ico_hdr]
+        icons = [item[2][0][2] for item in icons]
+        for icon_hdr_num in range(len(ico_hdr)):
+            offset = 0
+            # reserved
+            offset += WORD
+            data_type = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
+            offset += WORD
+            img_count = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
+            offset += WORD
+            res = bytes()
+            res += to_little_endian(0, WORD)
+            res += to_little_endian(data_type, WORD)
+            res += to_little_endian(img_count, WORD)
+            last_ico_size = 0
+            img_index = list()
+            for elem in range(img_count):
+                # 0 == 256
+                # width
+                res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
+                offset += BYTE
+                # 0 == 256
+                # height
+                res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
+                offset += BYTE
+                # color count
+                res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
+                offset += BYTE
                 # reserved
+                res += to_little_endian(0, BYTE)
+                offset += BYTE
+                # planes
+                res += ico_hdr[icon_hdr_num][offset:offset + WORD]
                 offset += WORD
-                data_type = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
+                # bits per pixel
+                res += ico_hdr[icon_hdr_num][offset:offset + WORD]
                 offset += WORD
-                img_count = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
+                # size in bytes
+                size_mem = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + DWORD])
+                res += ico_hdr[icon_hdr_num][offset:offset + DWORD]
+                offset += DWORD
+                # image index in ICON directory
+                img_index.append(from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
                 offset += WORD
-                res = bytes()
-                res += to_little_endian(0, WORD)
-                res += to_little_endian(data_type, WORD)
-                res += to_little_endian(img_count, WORD)
-                last_ico_size = 0
-                img_index = list()
-                for elem in range(img_count):
-                    # 0 == 256
-                    # width
-                    res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
-                    offset += BYTE
-                    # 0 == 256
-                    # height
-                    res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
-                    offset += BYTE
-                    # color count
-                    res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
-                    offset += BYTE
-                    # reserved
-                    res += to_little_endian(0, BYTE)
-                    offset += BYTE
-                    # planes
-                    res += ico_hdr[icon_hdr_num][offset:offset + WORD]
-                    offset += WORD
-                    # bits per pixel
-                    res += ico_hdr[icon_hdr_num][offset:offset + WORD]
-                    offset += WORD
-                    # size in bytes
-                    size_mem = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + DWORD])
-                    res += ico_hdr[icon_hdr_num][offset:offset + DWORD]
-                    offset += DWORD
-                    # image index in ICON directory
-                    img_index.append(from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
-                    offset += WORD
-                    # data_offset
-                    file_offset = WORD * 3
-                    file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_ico_size
-                    res += to_little_endian(file_offset, DWORD)
-                    last_ico_size += size_mem
-                for ico in range(img_count):
-                    res += icons[img_index[ico]]
-                with open(f'{icon_name[icon_hdr_num]}.ico', 'wb') as out_file:
-                    out_file.write(res)
+                # data_offset
+                file_offset = WORD * 3
+                file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_ico_size
+                res += to_little_endian(file_offset, DWORD)
+                last_ico_size += size_mem
+            for ico in range(img_count):
+                res += icons[img_index[ico]]
+            with open(f'{icon_name[icon_hdr_num]}.ico', 'wb') as out_file:
+                out_file.write(res)
 
     def get_cursor(self):
         if 'GROUP_CURSOR' not in [item[0] for item in self.dir_tree] or \
                 'CURSOR' not in [item[0] for item in self.dir_tree]:
             raise AttributeError('There are no icons in the executable file')
-        if not os.path.exists(f'{self.parent.file_name}.cursors'):
-            cur_hdr = [item for item in self.dir_tree if item[0] == 'GROUP_CURSOR'][0][2]
-            cursors = [item for item in self.dir_tree if item[0] == 'CURSOR'][0][2]
-            os.mkdir(f'{self.parent.file_name}.cursors')
-            os.chdir(f'{self.parent.file_name}.cursors')
-            cursor_name = [item[0] for item in cur_hdr]
-            cur_hdr = [item[2][0][2] for item in cur_hdr]
-            cursors = [item[2][0][2] for item in cursors]
-            for icon_hdr_num in range(len(cur_hdr)):
-                offset = 0
-                # reserved
+        sdir_name = dir_name = f'{self.parent.file_name}.cursors'
+        num = 0
+        while os.path.exists(dir_name):
+            dir_name = f'{sdir_name}_{num}'
+            num += 1
+        cur_hdr = [item for item in self.dir_tree if item[0] == 'GROUP_CURSOR'][0][2]
+        cursors = [item for item in self.dir_tree if item[0] == 'CURSOR'][0][2]
+        os.mkdir(dir_name)
+        os.chdir(dir_name)
+        cursor_name = [item[0] for item in cur_hdr]
+        cur_hdr = [item[2][0][2] for item in cur_hdr]
+        cursors = [item[2][0][2] for item in cursors]
+        for icon_hdr_num in range(len(cur_hdr)):
+            offset = 0
+            # reserved
+            offset += WORD
+            data_type = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+            offset += WORD
+            img_count = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+            offset += WORD
+            res = bytes()
+            res += to_little_endian(0, WORD)
+            res += to_little_endian(data_type, WORD)
+            res += to_little_endian(img_count, WORD)
+            last_cur_size = 0
+            img_index = list()
+            for elem in range(img_count):
+                # width
+                w = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                data_type = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+                # height
+                h = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                img_count = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+                unknown = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD])
+                offset += DWORD
+                if unknown != int('40', 16):
+                    h = h // 2
+                # size in bytes
+                size_mem = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD]) - 4
+                offset += DWORD
+                # image index in CURSOR directory
+                img_index.append(from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
                 offset += WORD
-                res = bytes()
-                res += to_little_endian(0, WORD)
-                res += to_little_endian(data_type, WORD)
-                res += to_little_endian(img_count, WORD)
-                last_cur_size = 0
-                img_index = list()
-                for elem in range(img_count):
-                    # width
-                    w = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
-                    offset += WORD
-                    # height
-                    h = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
-                    offset += WORD
-                    unknown = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD])
-                    offset += DWORD
-                    if unknown != int('40', 16):
-                        h = h // 2
-                    # size in bytes
-                    size_mem = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD]) - 4
-                    offset += DWORD
-                    # image index in CURSOR directory
-                    img_index.append(from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
-                    offset += WORD
-                    # data_offset
-                    file_offset = WORD * 3
-                    file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_cur_size
-                    h_coordinate = from_little_endian(cursors[img_index[-1]][:2])
-                    v_coordinate = from_little_endian(cursors[img_index[-1]][2:4])
+                # data_offset
+                file_offset = WORD * 3
+                file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_cur_size
+                h_coordinate = from_little_endian(cursors[img_index[-1]][:2])
+                v_coordinate = from_little_endian(cursors[img_index[-1]][2:4])
 
-                    # cursor assembling
-                    res += to_little_endian(w, BYTE)
-                    res += to_little_endian(h, BYTE)
-                    res += to_little_endian(0, BYTE)
-                    res += to_little_endian(0, BYTE)
-                    res += to_little_endian(h_coordinate, WORD)
-                    res += to_little_endian(v_coordinate, WORD)
-                    res += to_little_endian(size_mem, DWORD)
-                    res += to_little_endian(file_offset, DWORD)
-                    last_cur_size += size_mem
-                for ico in range(img_count):
-                    res += cursors[img_index[ico]][4:]
-                with open(f'{cursor_name[icon_hdr_num]}.cur', 'wb') as out_file:
-                    out_file.write(res)
+                # cursor assembling
+                res += to_little_endian(w, BYTE)
+                res += to_little_endian(h, BYTE)
+                res += to_little_endian(0, BYTE)
+                res += to_little_endian(0, BYTE)
+                res += to_little_endian(h_coordinate, WORD)
+                res += to_little_endian(v_coordinate, WORD)
+                res += to_little_endian(size_mem, DWORD)
+                res += to_little_endian(file_offset, DWORD)
+                last_cur_size += size_mem
+            for ico in range(img_count):
+                res += cursors[img_index[ico]][4:]
+            with open(f'{cursor_name[icon_hdr_num]}.cur', 'wb') as out_file:
+                out_file.write(res)
