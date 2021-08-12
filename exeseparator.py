@@ -143,29 +143,29 @@ DATA_DIRECTORY_LENGTH = int()
 SECTION_DATA_LENGTH = 40
 
 
-def fill_fields(cls, content, fields):
+def fill_fields(class_, content, fields):
     """
-    Fill fields of the _cls_ header, using _content_ data and creating _fields_ fields
-    :param cls: the instance of the class that represents the header
+    Fill fields of the class_ header, using content data and creating fields
+    :param class_: the instance of the class that represents the header
     :param content: byte-string from an executable file that contains necessary data
-    :param fields: list of names of fields that will be added in _cls_
+    :param fields: list of names of fields that will be added in class_
     :return: None
     """
     offset = 0
     for item in fields:
         if len(item) == 2:
-            exec(f'cls.{item[0]} = content[offset:offset+{item[1]}]')
-            exec(f'cls.{item[0]} = from_little_endian(cls.{item[0]})')
+            exec(f'class_.{item[0]} = content[offset:offset+{item[1]}]')
+            exec(f'class_.{item[0]} = from_little_endian(class_.{item[0]})')
             offset += item[1]
         else:
-            exec(f'cls.{item[0]} = list()')
+            exec(f'class_.{item[0]} = list()')
             for elem in range(item[2]):
-                exec(f'cls.{item[0]}.append(content[offset+elem*{item[1]}:offset+(elem+1)*{item[1]}])')
-                exec(f'cls.{item[0]}[-1] = from_little_endian(cls.{item[0]}[elem])')
+                exec(f'class_.{item[0]}.append(content[offset+elem*{item[1]}:offset+(elem+1)*{item[1]}])')
+                exec(f'class_.{item[0]}[-1] = from_little_endian(class_.{item[0]}[elem])')
             offset += item[1] * item[2]
 
 
-class DOS_header:
+class DOSHeader:
     """
     WORD    e_magic;         // Magic number
     WORD    e_cblp;          // Bytes on last page of file
@@ -199,7 +199,7 @@ class DOS_header:
         DOS_STUB_LENGTH = self.e_lfanew - DOS_HEADER_LENGTH
 
 
-class DOS_stub:
+class DOSStub:
     """
     DOS-stub executes when the application is running on DOS-system
     """
@@ -208,12 +208,12 @@ class DOS_stub:
         self.content = content
 
 
-class PE_sign:
+class PESign:
     def __init__(self, content):
         self.value = content[:DWORD]
 
 
-class File_header:
+class FileHeader:
     def __init__(self, content):
         fields = (['machine', WORD], ['number_of_sections', WORD], ['timedate_stamp', DWORD],
                   ['pointer_to_symbol_table', DWORD], ['number_of_symbols', DWORD],
@@ -223,7 +223,7 @@ class File_header:
         OPTIONAL_HEADER_LENGTH = self.size_of_optional_header
 
 
-class Optional_header:
+class OptionalHeader:
     def __init__(self, content):
         fields = (['magic', WORD], ['major_linker_version', BYTE], ['minor_linker_version', BYTE],
                   ['size_of_code', DWORD], ['size_of_initialized_data', DWORD],
@@ -252,7 +252,7 @@ class Optional_header:
                                         'size': from_little_endian(size)})
 
 
-class Section_data:
+class SectionData:
     def __init__(self, content):
         fields = (['name', BYTE, 8], ['physical_address', DWORD], ['virtual_address', DWORD],
                   ['size_of_raw_data', DWORD], ['pointer_to_raw_data', DWORD], ['pointer_to_relocations', DWORD],
@@ -261,28 +261,28 @@ class Section_data:
         fill_fields(self, content, fields)
 
 
-class EXE_separator:
+class ExeSeparator:
     def __init__(self, file_name: str):
         self.file_name = file_name
         exe = open(file_name, 'rb')
         offset = 0
-        self.DOS_header = DOS_header(exe.read(DOS_HEADER_LENGTH))
+        self.DOS_header = DOSHeader(exe.read(DOS_HEADER_LENGTH))
         offset += DOS_HEADER_LENGTH
         if bytes(self.DOS_header.e_magic) != b'MZ':
             raise Exception('The file isn\'t an executable.')
-        self.DOS_stub = DOS_stub(exe.read(DOS_STUB_LENGTH))
+        self.DOS_stub = DOSStub(exe.read(DOS_STUB_LENGTH))
         offset += DOS_STUB_LENGTH
-        self.PE_sign = PE_sign(exe.read(DWORD))
+        self.PE_sign = PESign(exe.read(DWORD))
         offset += DWORD
         if bytes(self.PE_sign.value) != b'PE\x00\x00':
             raise Exception('The file isn\'t a portable executable.')
-        self.File_header = File_header(exe.read(FILE_HEADER_LENGTH))
+        self.File_header = FileHeader(exe.read(FILE_HEADER_LENGTH))
         offset += FILE_HEADER_LENGTH
-        self.Optional_header = Optional_header(exe.read(OPTIONAL_HEADER_LENGTH))
+        self.Optional_header = OptionalHeader(exe.read(OPTIONAL_HEADER_LENGTH))
         offset += OPTIONAL_HEADER_LENGTH
         self.Section_table = list()
         for sect_num in range(self.File_header.number_of_sections):
-            self.Section_table.append(Section_data(exe.read(SECTION_DATA_LENGTH)))
+            self.Section_table.append(SectionData(exe.read(SECTION_DATA_LENGTH)))
             offset += SECTION_DATA_LENGTH
         self.Section_content = list()
         for sect_num in range(self.File_header.number_of_sections):
@@ -293,7 +293,7 @@ class EXE_separator:
         # analyzing rsrc section
         if b'.rsrc\x00\x00\x00' in [bytes(item.name) for item in self.Section_table]:
             sect_num = [bytes(item.name) for item in self.Section_table].index(b'.rsrc\x00\x00\x00')
-            self.rsrc_section = rsrc_section(self, sect_num)
+            self.rsrc_section = RsrcSection(self, sect_num)
 
     def get_sections(self):
         os.mkdir(f'{self.file_name}.sections')
@@ -312,8 +312,8 @@ class EXE_separator:
         self.rsrc_section.get_cursor()
 
 
-class rsrc_section:
-    def __init__(self, parent: EXE_separator, sect_num):
+class RsrcSection:
+    def __init__(self, parent: ExeSeparator, sect_num):
         self.parent = parent
         content = parent.Section_content[sect_num]
         self.dir_tree = list()
@@ -370,59 +370,66 @@ class rsrc_section:
         os.mkdir(dir_name)
         os.chdir(dir_name)
         icon_name = [item[0] for item in ico_hdr]
-        ico_hdr = [item[2][0][2] for item in ico_hdr]
+        icon_lang = [item[2] for item in ico_hdr]
+        ico_hdr = list()
+        for item in icon_lang:
+            ico_hdr.append([i[2] for i in item])
         icons = [item[2][0][2] for item in icons]
-        for icon_hdr_num in range(len(ico_hdr)):
-            offset = 0
-            # reserved
-            offset += WORD
-            data_type = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
-            offset += WORD
-            img_count = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD])
-            offset += WORD
-            res = bytes()
-            res += to_little_endian(0, WORD)
-            res += to_little_endian(data_type, WORD)
-            res += to_little_endian(img_count, WORD)
-            last_ico_size = 0
-            img_index = list()
-            for elem in range(img_count):
-                # 0 == 256
-                # width
-                res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
-                offset += BYTE
-                # 0 == 256
-                # height
-                res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
-                offset += BYTE
-                # color count
-                res += ico_hdr[icon_hdr_num][offset:offset + BYTE]
-                offset += BYTE
+        for i_name in range(len(icon_name)):
+            os.mkdir(str(icon_name[i_name]))
+            os.chdir(str(icon_name[i_name]))
+            for icon_hdr_num in range(len(ico_hdr[i_name])):
+                offset = 0
                 # reserved
-                res += to_little_endian(0, BYTE)
-                offset += BYTE
-                # planes
-                res += ico_hdr[icon_hdr_num][offset:offset + WORD]
                 offset += WORD
-                # bits per pixel
-                res += ico_hdr[icon_hdr_num][offset:offset + WORD]
+                data_type = from_little_endian(ico_hdr[i_name][icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                # size in bytes
-                size_mem = from_little_endian(ico_hdr[icon_hdr_num][offset:offset + DWORD])
-                res += ico_hdr[icon_hdr_num][offset:offset + DWORD]
-                offset += DWORD
-                # image index in ICON directory
-                img_index.append(from_little_endian(ico_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
+                img_count = from_little_endian(ico_hdr[i_name][icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                # data_offset
-                file_offset = WORD * 3
-                file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_ico_size
-                res += to_little_endian(file_offset, DWORD)
-                last_ico_size += size_mem
-            for ico in range(img_count):
-                res += icons[img_index[ico]]
-            with open(f'{icon_name[icon_hdr_num]}.ico', 'wb') as out_file:
-                out_file.write(res)
+                res = bytes()
+                res += to_little_endian(0, WORD)
+                res += to_little_endian(data_type, WORD)
+                res += to_little_endian(img_count, WORD)
+                last_ico_size = 0
+                img_index = list()
+                for elem in range(img_count):
+                    # 0 == 256
+                    # width
+                    res += ico_hdr[i_name][icon_hdr_num][offset:offset + BYTE]
+                    offset += BYTE
+                    # 0 == 256
+                    # height
+                    res += ico_hdr[i_name][icon_hdr_num][offset:offset + BYTE]
+                    offset += BYTE
+                    # color count
+                    res += ico_hdr[i_name][icon_hdr_num][offset:offset + BYTE]
+                    offset += BYTE
+                    # reserved
+                    res += to_little_endian(0, BYTE)
+                    offset += BYTE
+                    # planes
+                    res += ico_hdr[i_name][icon_hdr_num][offset:offset + WORD]
+                    offset += WORD
+                    # bits per pixel
+                    res += ico_hdr[i_name][icon_hdr_num][offset:offset + WORD]
+                    offset += WORD
+                    # size in bytes
+                    size_mem = from_little_endian(ico_hdr[i_name][icon_hdr_num][offset:offset + DWORD])
+                    res += ico_hdr[i_name][icon_hdr_num][offset:offset + DWORD]
+                    offset += DWORD
+                    # image index in ICON directory
+                    img_index.append(from_little_endian(ico_hdr[i_name][icon_hdr_num][offset:offset + WORD]) - 1)
+                    offset += WORD
+                    # data_offset
+                    file_offset = WORD * 3
+                    file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_ico_size
+                    res += to_little_endian(file_offset, DWORD)
+                    last_ico_size += size_mem
+                for ico in range(img_count):
+                    res += icons[img_index[ico]]
+                with open(f'{icon_lang[i_name][icon_hdr_num][0]}.ico', 'wb') as out_file:
+                    out_file.write(res)
+            os.chdir('..')
 
     def get_cursor(self):
         if 'GROUP_CURSOR' not in [item[0] for item in self.dir_tree] or \
