@@ -444,57 +444,64 @@ class RsrcSection:
         cursors = [item for item in self.dir_tree if item[0] == 'CURSOR'][0][2]
         os.mkdir(dir_name)
         os.chdir(dir_name)
-        cursor_name = [item[0] for item in cur_hdr]
-        cur_hdr = [item[2][0][2] for item in cur_hdr]
+        cur_name = [item[0] for item in cur_hdr]
+        cur_lang = [item[2] for item in cur_hdr]
+        cur_hdr = list()
+        for item in cur_lang:
+            cur_hdr.append([i[2] for i in item])
         cursors = [item[2][0][2] for item in cursors]
-        for icon_hdr_num in range(len(cur_hdr)):
-            offset = 0
-            # reserved
-            offset += WORD
-            data_type = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
-            offset += WORD
-            img_count = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
-            offset += WORD
-            res = bytes()
-            res += to_little_endian(0, WORD)
-            res += to_little_endian(data_type, WORD)
-            res += to_little_endian(img_count, WORD)
-            last_cur_size = 0
-            img_index = list()
-            for elem in range(img_count):
-                # width
-                w = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+        for c_name in range(len(cur_name)):
+            os.mkdir(str(cur_name[c_name]))
+            os.chdir(str(cur_name[c_name]))
+            for icon_hdr_num in range(len(cur_hdr[c_name])):
+                offset = 0
+                # reserved
                 offset += WORD
-                # height
-                h = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD])
+                data_type = from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                unknown = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD])
-                offset += DWORD
-                if unknown != int('40', 16):
-                    h = h // 2
-                # size in bytes
-                size_mem = from_little_endian(cur_hdr[icon_hdr_num][offset:offset + DWORD]) - 4
-                offset += DWORD
-                # image index in CURSOR directory
-                img_index.append(from_little_endian(cur_hdr[icon_hdr_num][offset:offset + WORD]) - 1)
+                img_count = from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + WORD])
                 offset += WORD
-                # data_offset
-                file_offset = WORD * 3
-                file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_cur_size
-                h_coordinate = from_little_endian(cursors[img_index[-1]][:2])
-                v_coordinate = from_little_endian(cursors[img_index[-1]][2:4])
+                res = bytes()
+                res += to_little_endian(0, WORD)
+                res += to_little_endian(data_type, WORD)
+                res += to_little_endian(img_count, WORD)
+                last_cur_size = 0
+                img_index = list()
+                for elem in range(img_count):
+                    # width
+                    w = from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + WORD])
+                    offset += WORD
+                    # height
+                    h = from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + WORD])
+                    offset += WORD
+                    unknown = from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + DWORD])
+                    offset += DWORD
+                    if unknown != int('40', 16):
+                        h = h // 2
+                    # size in bytes
+                    size_mem = from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + DWORD]) - 4
+                    offset += DWORD
+                    # image index in CURSOR directory
+                    img_index.append(from_little_endian(cur_hdr[c_name][icon_hdr_num][offset:offset + WORD]) - 1)
+                    offset += WORD
+                    # data_offset
+                    file_offset = WORD * 3
+                    file_offset += (BYTE * 4 + WORD * 2 + DWORD * 2) * img_count + last_cur_size
+                    h_coordinate = from_little_endian(cursors[img_index[-1]][:2])
+                    v_coordinate = from_little_endian(cursors[img_index[-1]][2:4])
 
-                # cursor assembling
-                res += to_little_endian(w, BYTE)
-                res += to_little_endian(h, BYTE)
-                res += to_little_endian(0, BYTE)
-                res += to_little_endian(0, BYTE)
-                res += to_little_endian(h_coordinate, WORD)
-                res += to_little_endian(v_coordinate, WORD)
-                res += to_little_endian(size_mem, DWORD)
-                res += to_little_endian(file_offset, DWORD)
-                last_cur_size += size_mem
-            for ico in range(img_count):
-                res += cursors[img_index[ico]][4:]
-            with open(f'{cursor_name[icon_hdr_num]}.cur', 'wb') as out_file:
-                out_file.write(res)
+                    # cursor assembling
+                    res += to_little_endian(w, BYTE)
+                    res += to_little_endian(h, BYTE)
+                    res += to_little_endian(0, BYTE)
+                    res += to_little_endian(0, BYTE)
+                    res += to_little_endian(h_coordinate, WORD)
+                    res += to_little_endian(v_coordinate, WORD)
+                    res += to_little_endian(size_mem, DWORD)
+                    res += to_little_endian(file_offset, DWORD)
+                    last_cur_size += size_mem
+                for ico in range(img_count):
+                    res += cursors[img_index[ico]][4:]
+                with open(f'{cur_lang[c_name][icon_hdr_num][0]}.cur', 'wb') as out_file:
+                    out_file.write(res)
+            os.chdir('..')
